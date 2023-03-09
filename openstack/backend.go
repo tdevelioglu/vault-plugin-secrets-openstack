@@ -125,8 +125,10 @@ func (c *sharedCloud) initClient(ctx context.Context, s logical.Storage) error {
 		Username:         cloud.Username,
 		Password:         cloud.Password,
 		DomainName:       cloud.UserDomainName,
+		TenantName:       cloud.ProjectName,
 		Scope: &gophercloud.AuthScope{
-			DomainName: cloud.UserDomainName,
+			DomainName:  cloud.UserDomainName,
+			ProjectName: cloud.ProjectName,
 		},
 	}
 

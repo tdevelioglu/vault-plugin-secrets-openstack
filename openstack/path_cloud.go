@@ -36,6 +36,7 @@ type OsCloud struct {
 	Name                       string        `json:"name"`
 	AuthURL                    string        `json:"auth_url"`
 	UserDomainName             string        `json:"user_domain_name"`
+	ProjectName                string        `json:"project_name"`
 	Username                   string        `json:"username"`
 	Password                   string        `json:"password"`
 	UsernameTemplate           string        `json:"username_template"`
@@ -86,6 +87,11 @@ func (b *backend) pathCloud() *framework.Path {
 				Type:        framework.TypeString,
 				Required:    true,
 				Description: "Name of the domain of the root user.",
+			},
+			"project_name": {
+				Type:        framework.TypeString,
+				Required:    true,
+				Description: "Name of the project of the root user.",
 			},
 			"username": {
 				Type:        framework.TypeString,
@@ -183,6 +189,9 @@ func (b *backend) pathCloudCreateUpdate(ctx context.Context, r *logical.Request,
 	if userDomainName, ok := d.GetOk("user_domain_name"); ok {
 		cloudConfig.UserDomainName = userDomainName.(string)
 	}
+	if projectName, ok := d.GetOk("project_name"); ok {
+		cloudConfig.ProjectName = projectName.(string)
+	}
 	if username, ok := d.GetOk("username"); ok {
 		cloudConfig.Username = username.(string)
 	}
@@ -237,6 +246,7 @@ func (b *backend) pathCloudRead(ctx context.Context, r *logical.Request, d *fram
 		Data: map[string]interface{}{
 			"auth_url":          cloudConfig.AuthURL,
 			"user_domain_name":  cloudConfig.UserDomainName,
+			"project_name":      cloudConfig.ProjectName,
 			"username":          cloudConfig.Username,
 			"username_template": cloudConfig.UsernameTemplate,
 			"password_policy":   cloudConfig.PasswordPolicy,
