@@ -354,6 +354,9 @@ func createUser(client *gophercloud.ServiceClient, username, password string, ro
 		if err != nil {
 			return nil, err
 		}
+		if projectID == "" {
+			return nil, fmt.Errorf("failed to find project with the name: %s", role.ProjectName)
+		}
 	}
 
 	userCreateOpts := users.CreateOpts{
@@ -593,6 +596,9 @@ func getDomainByName(client *gophercloud.ServiceClient, domainName string) (stri
 	})
 	if err != nil {
 		return "", err
+	}
+	if domainID == "" {
+		return "", fmt.Errorf("failed to find domain with the name: %s", domainName)
 	}
 	return domainID, nil
 }
