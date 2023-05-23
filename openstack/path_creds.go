@@ -513,38 +513,27 @@ type authResponseData struct {
 func formAuthResponse(role *roleEntry, authResponse *authResponseData) map[string]interface{} {
 	var auth map[string]interface{}
 
-	switch {
-	case role.ProjectID != "":
-		auth = map[string]interface{}{
-			"project_id": role.ProjectID,
-		}
-	case role.ProjectName != "":
-		if role.Root {
-			auth = map[string]interface{}{
-				"project_name":        role.ProjectName,
-				"project_domain_name": authResponse.DomainName,
-			}
-		} else {
-			auth = map[string]interface{}{
-				"project_name":      role.ProjectName,
-				"project_domain_id": authResponse.DomainID,
-			}
-		}
-	default:
-		if role.Root {
-			auth = map[string]interface{}{
-				"user_domain_name": authResponse.DomainName,
-			}
-		} else {
-			auth = map[string]interface{}{
-				"user_domain_id": authResponse.DomainID,
-			}
-		}
-	}
-
 	if authResponse.Token != "" {
-		auth["token"] = authResponse.Token
+		auth = map[string]interface{}{"token": authResponse.Token}
 	} else {
+		switch {
+		case role.ProjectID != "":
+			auth = map[string]interface{}{
+				"project_id": role.ProjectID,
+			}
+		case role.ProjectName != "":
+			auth = map[string]interface{}{
+				"project_name": role.ProjectName,
+			}
+			if role.ProjectDomainID != "" {
+				auth["project_domain_id"] = role.ProjectDomainID
+			} else if role.ProjectDomainName != "" {
+				auth["project_domain_name"] = role.ProjectDomainName
+			} else {
+				auth["project_domain_id"] = authResponse.DomainID
+			}
+		}
+		auth["user_domain_id"] = authResponse.DomainID
 		auth["username"] = authResponse.Username
 		auth["password"] = authResponse.Password
 	}
