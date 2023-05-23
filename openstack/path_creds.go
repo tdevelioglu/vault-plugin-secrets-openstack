@@ -328,7 +328,18 @@ func createUser(client *gophercloud.ServiceClient, username, password string, ro
 
 	projectID := role.ProjectID
 	if projectID == "" && role.ProjectName != "" {
-		err := projects.List(client, projects.ListOpts{Name: role.ProjectName}).EachPage(func(page pagination.Page) (bool, error) {
+		projectDomainID := role.ProjectDomainID
+		if projectDomainID == "" && role.ProjectDomainName != "" {
+			domain, err := getDomainByName(client, role.ProjectDomainName)
+			if err != nil {
+				return nil, err
+			}
+			projectDomainID = domain
+		}
+		if projectDomainID == "" {
+			projectDomainID = userDomainID
+		}
+		err := projects.List(client, projects.ListOpts{Name: role.ProjectName, DomainID: projectDomainID}).EachPage(func(page pagination.Page) (bool, error) {
 			project, err := projects.ExtractProjects(page)
 			if err != nil {
 				return false, err
@@ -563,18 +574,18 @@ func getUserDomain(client *gophercloud.ServiceClient, role *roleEntry) (string, 
 }
 
 func getDomainByName(client *gophercloud.ServiceClient, domainName string) (string, error) {
-	var userDomainID string
+	var domainID string
 	err := domains.ListAvailable(client).EachPage(func(page pagination.Page) (bool, error) {
-		availDomains, err := domains.ExtractDomains(page)
+		domains, err := domains.ExtractDomains(page)
 		if err != nil {
 			return false, err
 		}
-		if len(availDomains) == 0 {
+		if len(domains) == 0 {
 			return false, fmt.Errorf("failed to find domain with name: %s", domainName)
 		}
-		for _, domain := range availDomains {
+		for _, domain := range domains {
 			if domain.Name == domainName {
-				userDomainID = domain.ID
+				domainID = domain.ID
 				return false, nil
 			}
 		}
@@ -583,5 +594,5 @@ func getDomainByName(client *gophercloud.ServiceClient, domainName string) (stri
 	if err != nil {
 		return "", err
 	}
-	return userDomainID, nil
+	return domainID, nil
 }
