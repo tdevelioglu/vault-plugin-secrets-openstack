@@ -8,6 +8,7 @@ import (
 	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/openstack/common"
 	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/vars"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -415,7 +416,7 @@ func filterRoles(client *gophercloud.ServiceClient, roleNames []string) ([]roles
 	var filteredRoles []roles.Role
 	for _, name := range roleNames {
 		for _, role := range roleList {
-			if role.Name == name {
+			if strings.ToLower(role.Name) == strings.ToLower(name) {
 				filteredRoles = append(filteredRoles, role)
 				break
 			}

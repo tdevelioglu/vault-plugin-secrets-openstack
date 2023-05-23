@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"strings"
 	golangsdk "github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/groups"
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/roles"
@@ -17,10 +18,14 @@ func CheckGroupSlices(groups []groups.Group, userEntities []string) []string {
 
 func CheckRolesSlices(roles []roles.Role, userEntities []string) []string {
 	var existingEntity []string
+	var requestedRoles []string
 	for _, entity := range roles {
-		existingEntity = append(existingEntity, entity.Name)
+		existingEntity = append(existingEntity, strings.ToLower(entity.Name))
 	}
-	return sliceSubtraction(userEntities, existingEntity)
+	for _, role := range userEntities {
+		requestedRoles = append(requestedRoles, strings.ToLower(role))
+	}
+	return sliceSubtraction(requestedRoles, existingEntity)
 }
 
 func sliceSubtraction(a, b []string) (diff []string) {
