@@ -8,6 +8,7 @@ import (
 	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/openstack/common"
 	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/vars"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gophercloud/gophercloud"
@@ -327,7 +328,18 @@ func createUser(client *gophercloud.ServiceClient, username, password string, ro
 
 	projectID := role.ProjectID
 	if projectID == "" && role.ProjectName != "" {
-		err := projects.List(client, projects.ListOpts{Name: role.ProjectName}).EachPage(func(page pagination.Page) (bool, error) {
+		projectDomainID := role.ProjectDomainID
+		if projectDomainID == "" && role.ProjectDomainName != "" {
+			domain, err := getDomainByName(client, role.ProjectDomainName)
+			if err != nil {
+				return nil, err
+			}
+			projectDomainID = domain
+		}
+		if projectDomainID == "" {
+			projectDomainID = userDomainID
+		}
+		err := projects.List(client, projects.ListOpts{Name: role.ProjectName, DomainID: projectDomainID}).EachPage(func(page pagination.Page) (bool, error) {
 			project, err := projects.ExtractProjects(page)
 			if err != nil {
 				return false, err
@@ -341,6 +353,9 @@ func createUser(client *gophercloud.ServiceClient, username, password string, ro
 		})
 		if err != nil {
 			return nil, err
+		}
+		if projectID == "" {
+			return nil, fmt.Errorf("failed to find project with the name: %s", role.ProjectName)
 		}
 	}
 
@@ -415,7 +430,7 @@ func filterRoles(client *gophercloud.ServiceClient, roleNames []string) ([]roles
 	var filteredRoles []roles.Role
 	for _, name := range roleNames {
 		for _, role := range roleList {
-			if role.Name == name {
+			if strings.ToLower(role.Name) == strings.ToLower(name) {
 				filteredRoles = append(filteredRoles, role)
 				break
 			}
@@ -498,38 +513,27 @@ type authResponseData struct {
 func formAuthResponse(role *roleEntry, authResponse *authResponseData) map[string]interface{} {
 	var auth map[string]interface{}
 
-	switch {
-	case role.ProjectID != "":
-		auth = map[string]interface{}{
-			"project_id": role.ProjectID,
-		}
-	case role.ProjectName != "":
-		if role.Root {
-			auth = map[string]interface{}{
-				"project_name":        role.ProjectName,
-				"project_domain_name": authResponse.DomainName,
-			}
-		} else {
-			auth = map[string]interface{}{
-				"project_name":      role.ProjectName,
-				"project_domain_id": authResponse.DomainID,
-			}
-		}
-	default:
-		if role.Root {
-			auth = map[string]interface{}{
-				"user_domain_name": authResponse.DomainName,
-			}
-		} else {
-			auth = map[string]interface{}{
-				"user_domain_id": authResponse.DomainID,
-			}
-		}
-	}
-
 	if authResponse.Token != "" {
-		auth["token"] = authResponse.Token
+		auth = map[string]interface{}{"token": authResponse.Token}
 	} else {
+		switch {
+		case role.ProjectID != "":
+			auth = map[string]interface{}{
+				"project_id": role.ProjectID,
+			}
+		case role.ProjectName != "":
+			auth = map[string]interface{}{
+				"project_name": role.ProjectName,
+			}
+			if role.ProjectDomainID != "" {
+				auth["project_domain_id"] = role.ProjectDomainID
+			} else if role.ProjectDomainName != "" {
+				auth["project_domain_name"] = role.ProjectDomainName
+			} else {
+				auth["project_domain_id"] = authResponse.DomainID
+			}
+		}
+		auth["user_domain_id"] = authResponse.DomainID
 		auth["username"] = authResponse.Username
 		auth["password"] = authResponse.Password
 	}
@@ -562,18 +566,18 @@ func getUserDomain(client *gophercloud.ServiceClient, role *roleEntry) (string, 
 }
 
 func getDomainByName(client *gophercloud.ServiceClient, domainName string) (string, error) {
-	var userDomainID string
-	err := domains.ListAvailable(client).EachPage(func(page pagination.Page) (bool, error) {
-		availDomains, err := domains.ExtractDomains(page)
+	var domainID string
+	err := domains.List(client, domains.ListOpts{}).EachPage(func(page pagination.Page) (bool, error) {
+		domains, err := domains.ExtractDomains(page)
 		if err != nil {
 			return false, err
 		}
-		if len(availDomains) == 0 {
+		if len(domains) == 0 {
 			return false, fmt.Errorf("failed to find domain with name: %s", domainName)
 		}
-		for _, domain := range availDomains {
+		for _, domain := range domains {
 			if domain.Name == domainName {
-				userDomainID = domain.ID
+				domainID = domain.ID
 				return false, nil
 			}
 		}
@@ -582,5 +586,8 @@ func getDomainByName(client *gophercloud.ServiceClient, domainName string) (stri
 	if err != nil {
 		return "", err
 	}
-	return userDomainID, nil
+	if domainID == "" {
+		return "", fmt.Errorf("failed to find domain with the name: %s", domainName)
+	}
+	return domainID, nil
 }
