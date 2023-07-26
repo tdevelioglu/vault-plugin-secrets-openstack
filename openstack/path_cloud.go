@@ -3,10 +3,11 @@ package openstack
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/vars"
-	"time"
 )
 
 const (
@@ -225,9 +226,13 @@ func (b *backend) pathCloudCreateUpdate(ctx context.Context, r *logical.Request,
 		PolicyName:      cloudConfig.PasswordPolicy,
 	}
 
+	// We want to reset the client, so, let's lock the cloud
+	sCloud.lock.Lock()
+	defer sCloud.lock.Unlock()
 	if err := cloudConfig.save(ctx, r.Storage); err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
+	sCloud.resetClient()
 
 	return nil, nil
 }
@@ -258,6 +263,9 @@ func (b *backend) pathCloudRead(ctx context.Context, r *logical.Request, d *fram
 
 func (b *backend) pathCloudDelete(ctx context.Context, r *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	name := d.Get("name").(string)
+
+	// Let's not have outdated client etc
+	b.deleteSharedCloud(name)
 
 	if err := r.Storage.Delete(ctx, storageCloudKey(name)); err != nil {
 		return nil, fmt.Errorf("error deleting cloud: %w", err)

@@ -3,12 +3,13 @@ package openstack
 import (
 	"context"
 	"fmt"
-	"github.com/gophercloud/gophercloud/openstack/identity/v3/users"
-	"github.com/hashicorp/go-multierror"
-	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/openstack/common"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/users"
+	"github.com/hashicorp/go-multierror"
+	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/openstack/common"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -92,6 +93,10 @@ func (b *backend) getSharedCloud(name string) *sharedCloud {
 	return cloud
 }
 
+func (b *backend) deleteSharedCloud(name string) {
+	delete(b.clouds, name)
+}
+
 // getClient returns initialized Keystone service client
 func (c *sharedCloud) getClient(ctx context.Context, s logical.Storage) (*gophercloud.ServiceClient, error) {
 	c.lock.Lock()
@@ -152,6 +157,10 @@ func (c *sharedCloud) initClient(ctx context.Context, s logical.Storage) error {
 	c.client = sClient
 
 	return nil
+}
+
+func (c *sharedCloud) resetClient() {
+	c.client = nil
 }
 
 func (b *backend) periodicFunc(ctx context.Context, req *logical.Request) error {
@@ -228,6 +237,8 @@ func (b *backend) rotateIfRequired(ctx context.Context, req *logical.Request, sC
 		if err := cloudConfig.save(ctx, req.Storage); err != nil {
 			return err
 		}
+		// this is needed, as otherwise, client will be using invalid token
+		sCloud.resetClient()
 		b.Logger().Debug("password rotated", "cloud", cloudConfig.Name)
 	}
 	return nil
