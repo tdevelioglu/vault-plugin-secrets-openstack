@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack/identity/v3/users"
-	"github.com/hashicorp/go-multierror"
 	"github.com/opentelekomcloud/vault-plugin-secrets-openstack/openstack/common"
 
 	"github.com/gophercloud/gophercloud"
@@ -181,10 +180,6 @@ func (b *backend) autoRotateKeys(ctx context.Context, req *logical.Request) erro
 		return err
 	}
 
-	// Collect errors in a multierror to ensure a single failure doesn't prevent
-	// all keys from being rotated.
-	var errs *multierror.Error
-
 	for _, key := range keys {
 		cloudEntry := b.getSharedCloud(key)
 		if cloudEntry == nil {
@@ -193,11 +188,13 @@ func (b *backend) autoRotateKeys(ctx context.Context, req *logical.Request) erro
 
 		err = b.rotateIfRequired(ctx, req, cloudEntry)
 		if err != nil {
-			errs = multierror.Append(errs, err)
+			b.Logger().Error("rotation for cloud failed", "cloud", key, "err", err)
 		}
 	}
 	b.Logger().Debug("periodic func", "rotate-root", "rotation cycle complete")
-	return errs.ErrorOrNil()
+	// We do not want to return any errors, because it will cause rollback, which
+	// is wrong if we already rotated passwords on some clouds.
+	return nil
 }
 
 func (b *backend) rotateIfRequired(ctx context.Context, req *logical.Request, sCloud *sharedCloud) error {
